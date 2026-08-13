@@ -1,0 +1,114 @@
+:root {
+  --bg: #14100e;
+  --panel: #1d1713;
+  --line: #6b5b4f;
+  --accent: #cd7b5a;
+  --ink: #efe6dd;
+  --muted: #9a8b7f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.frame {
+  width: 100%;
+  max-width: 980px;
+  padding: 24px 20px 40px;
+}
+
+.game-title {
+  margin: 0 0 18px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  background: rgba(20, 16, 14, 0.62);
+  cursor: pointer;
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.overlay-label {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+.overlay-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.overlay-results {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+/* New-record highlight: warm glow on the whole overlay + orange label. */
+.overlay.record {
+  box-shadow: inset 0 0 0 2px var(--accent), inset 0 0 26px rgba(205, 123, 90, 0.28);
+}
+
+.overlay.record .overlay-label {
+  color: var(--accent);
+}
+
+.overlay.record .overlay-results {
+  color: var(--accent);
+}

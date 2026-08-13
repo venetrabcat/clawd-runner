@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLAWD RUN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="frame">
+    <h1 class="game-title">CLAWD&nbsp;RUN</h1>
+
+    <div class="stage">
+      <canvas id="game" width="900" height="300"></canvas>
+      <div id="start-screen" class="overlay" data-state="idle">
+        <p id="overlay-label" class="overlay-label">Press Space or Tap to Start</p>
+        <p id="overlay-results" class="overlay-results" hidden></p>
+        <p id="overlay-hint" class="overlay-hint">Space to jump &middot; Hold for higher &middot; &darr; to duck</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
