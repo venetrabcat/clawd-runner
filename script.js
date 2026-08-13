@@ -151,6 +151,31 @@ window.CLAWD = (function () {
   // are random again.
   const MAX_ROCKS_BEFORE_BIRD = 3;
 
+  // Power-up: one glowing energy crystal. Picking it up grants BOTH a speed
+  // boost (world speed multiplier while active) and brief invincibility
+  // (obstacles pass through the mascot). Single pickup, own pixel art.
+  const POWERUP_CHANCE = 0.08; // spawn chance per obstacle gap
+  const POWERUP_AHEAD = 170; // px ahead of the obstacle it spawns with
+  const BOOST_TIME = 5; // speed-boost duration, seconds
+  const BOOST_MULT = 1.45; // world speed multiplier while boosting
+  const INVINCIBLE_TIME = 4; // invincibility duration, seconds
+
+  // Own pixel-art crystal. '#' = glowing body, 'W' = white glint, '.' = empty.
+  // Bottom row sits on the ground; width = rows[0].length * scale.
+  const POWERUP_CRYSTAL = {
+    scale: 4,
+    rows: [
+      '....###....',
+      '...#####...',
+      '..#######..',
+      '.#########.',
+      '.W##...##W.',
+      '...#####...',
+      '....###....',
+    ],
+    colors: { '#': '#ffd54a', W: '#fff7d6' },
+  };
+
   /* ===================== State ===================== */
 
   const IDLE = 'idle';
@@ -177,6 +202,10 @@ window.CLAWD = (function () {
   let rocksSinceBird = 0; // ground rocks spawned since the last bird
   let runTime = 0; // time since the run started, ms
 
+  let powerups = []; // active pickups: { x, y, w, h }
+  let boostRemaining = 0; // seconds of speed boost left (0 = inactive)
+  let invincibleRemaining = 0; // seconds of invincibility left (0 = inactive)
+
   const player = {
     y: 0, // offset above the ground, px (0 = standing)
     vy: 0, // vertical velocity, px/s
@@ -200,6 +229,9 @@ window.CLAWD = (function () {
     score = 0;
     rocksSinceBird = 0;
     runTime = 0;
+    powerups.length = 0;
+    boostRemaining = 0;
+    invincibleRemaining = 0;
   }
 
   function start() {
@@ -307,6 +339,24 @@ window.CLAWD = (function () {
       w,
       h,
     });
+
+    // With some chance the same gap also carries a power-up. It spawns ahead
+    // of the obstacle (closer to the player), so a lucky pickup can be spent
+    // on plowing through that very obstacle.
+    if (Math.random() < POWERUP_CHANCE) spawnPowerup();
+  }
+
+  // Spawn a crystal on the ground, POWERUP_AHEAD px before the obstacle it
+  // was rolled with. Same world speed as everything else, so the lead holds.
+  function spawnPowerup() {
+    const w = POWERUP_CRYSTAL.rows[0].length * POWERUP_CRYSTAL.scale;
+    const h = POWERUP_CRYSTAL.rows.length * POWERUP_CRYSTAL.scale;
+    powerups.push({
+      x: W - POWERUP_AHEAD,
+      y: GROUND_Y - h, // bottom sits on the ground
+      w,
+      h,
+    });
   }
 
   function updateObstacles(dt) {
@@ -329,6 +379,12 @@ window.CLAWD = (function () {
       const o = obstacles[i];
       o.x -= move;
       if (o.x + o.w < -20) obstacles.splice(i, 1); // fully off screen
+    }
+
+    for (let i = powerups.length - 1; i >= 0; i -= 1) {
+      const p = powerups[i];
+      p.x -= move;
+      if (p.x + p.w < -20) powerups.splice(i, 1); // fully off screen
     }
   }
 
@@ -367,11 +423,26 @@ window.CLAWD = (function () {
   }
 
   function checkCollisions() {
+    if (invincibleRemaining > 0) return; // invincible — obstacles pass through
+
     const pb = playerHitbox();
     for (const o of obstacles) {
       if (hitboxesOverlap(pb, obstacleHitbox(o))) {
         gameOver();
         return;
+      }
+    }
+  }
+
+  // Pick up a crystal: grant the full boost + invincibility (refreshes any
+  // active effect rather than stacking). Removes the crystal from the road.
+  function checkPowerupPickup() {
+    const pb = playerHitbox();
+    for (let i = powerups.length - 1; i >= 0; i -= 1) {
+      if (hitboxesOverlap(pb, powerups[i])) {
+        powerups.splice(i, 1);
+        boostRemaining = BOOST_TIME;
+        invincibleRemaining = INVINCIBLE_TIME;
       }
     }
   }
@@ -394,16 +465,23 @@ window.CLAWD = (function () {
 
     // Difficulty ramp: speed grows in steps with run time, up to a ceiling.
     runTime += dt * 1000;
-    world.speed = Math.min(
+    const baseSpeed = Math.min(
       MAX_SPEED,
       RUN_SPEED + SPEED_RAMP * Math.floor(runTime / SPEED_INCREASE_MS)
     );
+    // Power-up boost: multiply speed (and thus score) while it lasts.
+    world.speed = boostRemaining > 0 ? baseSpeed * BOOST_MULT : baseSpeed;
+
+    // Power-up timers tick down.
+    if (boostRemaining > 0) boostRemaining -= dt;
+    if (invincibleRemaining > 0) invincibleRemaining -= dt;
 
     world.distance += world.speed * dt;
     groundOffset = (groundOffset + world.speed * dt) % GROUND_PITCH;
     score = Math.floor(world.distance / SCORE_PER_PX);
     updatePlayer(dt);
     updateObstacles(dt);
+    checkPowerupPickup();
     checkCollisions();
   }
 
@@ -455,11 +533,15 @@ window.CLAWD = (function () {
   // current run/dead frame. Bottom-anchored, so player.y lifts it in jumps.
   function drawMascot() {
     const groundY = GROUND_Y - player.y;
+    // Invincibility blink: flicker alpha so the phase-through reads clearly.
+    const blink = invincibleRemaining > 0 && state === RUNNING;
+    if (blink) ctx.globalAlpha = Math.floor(elapsed * 12) % 2 === 0 ? 1 : 0.35;
     if (player.ducking && state === RUNNING) {
       drawPixels(DUCK_ROWS, { '#': BODY, K: DARK }, MASCOT_X, groundY - DUCK_H, SPRITE.scale);
-      return;
+    } else {
+      drawSprite(MASCOT_X, groundY - SPRITE.h * SPRITE.scale, currentFrame());
     }
-    drawSprite(MASCOT_X, groundY - SPRITE.h * SPRITE.scale, currentFrame());
+    ctx.globalAlpha = 1;
   }
 
   function drawHud() {
@@ -468,7 +550,25 @@ window.CLAWD = (function () {
     ctx.fillStyle = '#cd7b5a';
     ctx.fillText(`HI ${best}`, HUD_X, HUD_Y);
     ctx.fillStyle = '#efe6dd';
-    ctx.fillText(`${score}`, HUD_X - 78, HUD_Y);
+    ctx.fillText(`${score}`, HUD_X - 100, HUD_Y);
+  }
+
+  // Power-up indicator: a small crystal and the seconds left, shown top-left
+  // while either effect is active. Counts down from whichever lasts longer.
+  function drawPowerupHud() {
+    const remaining = Math.max(boostRemaining, invincibleRemaining);
+    if (remaining <= 0 || state !== RUNNING) return;
+
+    const sec = Math.ceil(remaining);
+    const s = POWERUP_CRYSTAL.scale * 0.5; // mini crystal, half scale
+    const x = 16;
+    const y = 18;
+    drawPixels(POWERUP_CRYSTAL.rows, POWERUP_CRYSTAL.colors, x, y, s);
+
+    ctx.font = 'bold 14px "Courier New", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillText(`${sec}s`, x + POWERUP_CRYSTAL.rows[0].length * s + 6, y + 12);
   }
 
   // Score plaque above the mascot at game over, mirroring the reference's
@@ -515,11 +615,25 @@ window.CLAWD = (function () {
       drawPixels(o.type.rows, o.type.colors, o.x, o.y, o.type.scale)
     );
 
+    // Power-ups: pulsing glow so the pickup reads as alive.
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(elapsed * 8);
+    powerups.forEach((p) =>
+      drawPixels(
+        POWERUP_CRYSTAL.rows,
+        POWERUP_CRYSTAL.colors,
+        p.x,
+        p.y,
+        POWERUP_CRYSTAL.scale
+      )
+    );
+    ctx.globalAlpha = 1;
+
     // Mascot
     drawMascot();
 
-    // Scoreboard + death score plaque
+    // Scoreboard + power-up indicator + death score plaque
     drawHud();
+    drawPowerupHud();
     if (state === GAME_OVER) drawDeathScore();
   }
 
